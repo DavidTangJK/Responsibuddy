@@ -1,5 +1,6 @@
 import React from "react";
-import { AvatarIcon, StarIcon } from "../components/icons.jsx";
+import { StarIcon } from "../components/icons.jsx";
+import AvatarPreview from "../components/AvatarPreview.jsx"; // <-- IMPORT NEW PREVIEW
 
 // --- Child "Social" View Component ---
 export default function SocialView({ childrenProfiles, currentChildId }) {
@@ -18,7 +19,11 @@ export default function SocialView({ childrenProfiles, currentChildId }) {
               className="flex justify-between items-center p-3 bg-white rounded-lg border"
             >
               <div className="flex items-center gap-3">
-                <AvatarIcon className="w-10 h-10 text-blue-400" />
+                {/* --- USE NEW AVATAR PREVIEW --- */}
+                <AvatarPreview
+                  avatarConfig={friend.avatarConfig}
+                  className="w-10 h-10"
+                />
                 <span className="text-lg font-medium">{friend.name}</span>
               </div>
               <div className="flex items-center gap-1 px-3 py-1 bg-yellow-100 rounded-full">

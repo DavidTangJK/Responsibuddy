@@ -1,4 +1,4 @@
-import "./index.css";
+import "/src/index.css";
 import React, { useState, useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -14,12 +14,13 @@ import {
 } from "firebase/firestore";
 
 // Import our new config and components
-import { auth, db, appId, signInAnonymously } from "./firebaseConfig.js";
-import { MascotIcon, StarIcon, LockIcon } from "./components/icons.jsx";
-import LoadingSpinner from "./components/LoadingSpinner.jsx";
-import ParentView from "./views/ParentView.jsx";
-import ChildSelectionView from "./views/ChildSelectionView.jsx";
-import ChildDashboard from "./views/ChildDashboard.jsx";
+import { auth, db, appId, signInAnonymously } from "/src/firebaseConfig.js";
+import { MascotIcon, StarIcon, LockIcon } from "/src/components/icons.jsx";
+import LoadingSpinner from "/src/components/LoadingSpinner.jsx";
+import ParentView from "/src/views/ParentView.jsx";
+import ChildSelectionView from "/src/views/ChildSelectionView.jsx";
+import ChildDashboard from "/src/views/ChildDashboard.jsx";
+import AvatarCreator from "/src/views/AvatarCreator.jsx"; // <-- IMPORT NEW CREATOR
 
 // Helper function to get the start of the day as a string
 const getTodayString = () => {
@@ -30,11 +31,11 @@ const getTodayString = () => {
 export default function App() {
   const [user, setUser] = useState(null);
 
-  // --- Local State for View Management (Replaces Firestore 'settings') ---
-  const [view, setView] = useState("child"); // Default to child view for safety
+  // --- Local State for View Management ---
+  const [view, setView] = useState("child");
   const [currentChildId, setCurrentChildId] = useState(null);
   const [showPinModal, setShowPinModal] = useState(false);
-  // ---
+  const [onboardingChild, setOnboardingChild] = useState(null); // <-- NEW STATE
 
   const [childrenProfiles, setChildrenProfiles] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -42,6 +43,7 @@ export default function App() {
 
   // Effect for Authentication
   useEffect(() => {
+    // ... (existing code is fine)
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
@@ -62,10 +64,7 @@ export default function App() {
   useEffect(() => {
     if (user && db) {
       setLoading(true);
-      const userId = user.uid;
-
-      // 1. Subscribe to App Settings (viewMode, currentChildId)
-      //    REMOVED: This is no longer stored in Firestore.
+      // ... (existing code for children and tasks subscriptions is fine)
 
       // 2. Subscribe to Children Profiles Collection
       const childrenCollectionRef = collection(
@@ -88,14 +87,14 @@ export default function App() {
         }
       );
 
-      // 3. Subscribe to Tasks Collection (Only for today)
+      // 3. Subscribe to Tasks Collection (Fetch ALL tasks)
       const tasksCollectionRef = collection(
         db,
         `artifacts/${appId}/public/data/tasks`
       );
-      const todayString = getTodayString();
 
-      const q = query(tasksCollectionRef, where("taskDate", "==", todayString));
+      // Get all tasks, not just today's
+      const q = query(tasksCollectionRef);
 
       const unsubscribeTasks = onSnapshot(
         q,
@@ -113,7 +112,6 @@ export default function App() {
 
       // Cleanup subscriptions on component unmount or user change
       return () => {
-        // unsubscribeSettings(); // No longer needed
         unsubscribeChildren();
         unsubscribeTasks();
       };
@@ -123,28 +121,28 @@ export default function App() {
   // --- Handlers ---
 
   const handleViewChange = (targetView) => {
+    // ... (existing code is fine)
     if (targetView === "parent") {
-      // Show PIN modal instead of switching directly
       setShowPinModal(true);
     } else {
       setView("child");
-      setCurrentChildId(null); // Go back to child selection
+      setCurrentChildId(null);
     }
   };
 
   const handlePinSubmit = (pin) => {
-    const PARENT_PIN = "1234"; // Hardcoded PIN
-
+    // ... (existing code is fine)
+    const PARENT_PIN = "1234";
     if (pin === PARENT_PIN) {
       setView("parent");
       setShowPinModal(false);
     } else {
-      // Show an error in the modal
       return "Incorrect PIN. Please try again.";
     }
   };
 
   const handleCreateTask = async (
+    // ... (existing code is fine)
     text,
     stars,
     assignedTo,
@@ -163,12 +161,12 @@ export default function App() {
       await addDoc(tasksCollectionRef, {
         text: text,
         stars: parseInt(stars, 10),
-        assignedTo: assignedTo, // 'all' or a child's doc ID
-        assignedToName: assignedToName, // 'All Children' or child's name
-        taskDate: taskDate, // YYYY-MM-DD string
+        assignedTo: assignedTo,
+        assignedToName: assignedToName,
+        taskDate: taskDate,
         createdAt: new Date(),
-        status: "pending", // 'pending', 'completed'
-        completed: false, // Legacy, for compatibility
+        status: "pending",
+        completed: false,
         completedBy: null,
       });
     } catch (error) {
@@ -177,6 +175,7 @@ export default function App() {
   };
 
   const handleCompleteTask = async (task) => {
+    // ... (existing code is fine)
     if (!user || !currentChildId || task.status === "completed") return;
 
     const childId = currentChildId;
@@ -195,76 +194,74 @@ export default function App() {
 
     try {
       const batch = writeBatch(db);
-
-      // 1. Update the task
       batch.update(taskDocRef, {
         status: "completed",
-        completed: true, // Legacy
-        completedBy: childId, // Store which child completed it
+        completed: true,
+        completedBy: childId,
         completedAt: new Date(),
       });
-
-      // 2. Update the child's stars
       batch.update(profileDocRef, {
         stars: (childProfile.stars || 0) + task.stars,
       });
-
       await batch.commit();
     } catch (error) {
       console.error("Error completing task:", error);
     }
   };
 
-  const handleAddChild = async (name) => {
+  // --- NEW: Triggers the avatar creator flow ---
+  const handleStartOnboarding = (name) => {
     if (!name) return;
+    setOnboardingChild({ name: name });
+  };
+
+  // --- NEW: Saves the new child (name + avatar) to Firebase ---
+  const handleSaveChild = async (avatarConfig) => {
+    if (!onboardingChild || !onboardingChild.name) return;
+
     try {
       const childrenCollectionRef = collection(
         db,
         `artifacts/${appId}/public/data/children`
       );
       await addDoc(childrenCollectionRef, {
-        name: name,
+        name: onboardingChild.name,
         stars: 0,
-        avatar: "default", // You could randomize this later
+        avatarConfig: avatarConfig, // <-- Save the avatar config
       });
+      setOnboardingChild(null); // Exit onboarding
     } catch (error) {
       console.error("Error adding child:", error);
     }
   };
 
   const handleSetCurrentChild = (childId) => {
-    // This now just sets local state, no DB write
+    // ... (existing code is fine)
     setCurrentChildId(childId);
   };
 
   const handleBuyItem = async (item) => {
+    // ... (existing code is fine)
     if (!user || !currentChildId) return;
-
     const childId = currentChildId;
     const childProfile = childrenProfiles.find((p) => p.id === childId);
-
     if (!childProfile) {
       console.error("Could not find child profile.");
       return;
     }
-
     if (childProfile.stars < item.price) {
       console.error("Not enough stars!");
       return;
     }
-
     const profileDocRef = doc(
       db,
       `artifacts/${appId}/public/data/children`,
       childId
     );
-
     try {
       await updateDoc(profileDocRef, {
         stars: childProfile.stars - item.price,
       });
-
-      // Here, you would also add the item to the child's "inventory"
       const inventoryRef = collection(
         db,
         `artifacts/${appId}/public/data/children/${childId}/inventory`
@@ -274,7 +271,6 @@ export default function App() {
         name: item.name,
         boughtAt: new Date(),
       });
-
       console.log("Purchase successful!");
     } catch (error) {
       console.error("Error buying item:", error);
@@ -287,7 +283,7 @@ export default function App() {
     return <LoadingSpinner />;
   }
 
-  const currentView = view; // Use local state
+  const currentView = view;
   const currentChildProfile = childrenProfiles.find(
     (p) => p.id === currentChildId
   );
@@ -297,6 +293,7 @@ export default function App() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <header className="flex flex-col sm:flex-row justify-between sm:items-center mb-6">
+          {/* ... (existing header code is fine) ... */}
           <div className="flex items-center gap-3">
             <MascotIcon />
             <h1 className="text-3xl font-bold text-blue-600">
@@ -323,31 +320,33 @@ export default function App() {
           </div>
         </header>
 
-        {/* View Toggler */}
-        <div className="mb-6 flex justify-center">
-          <div className="flex p-1 bg-blue-100 rounded-full">
-            <button
-              onClick={() => handleViewChange("child")}
-              className={`py-2 px-6 rounded-full font-semibold transition-all ${
-                currentView === "child"
-                  ? "bg-white shadow text-blue-600"
-                  : "text-blue-500 hover:bg-blue-200"
-              }`}
-            >
-              Child View
-            </button>
-            <button
-              onClick={() => handleViewChange("parent")}
-              className={`py-2 px-6 rounded-full font-semibold transition-all ${
-                currentView === "parent"
-                  ? "bg-white shadow text-blue-600"
-                  : "text-blue-500 hover:bg-blue-200"
-              }`}
-            >
-              Parent View
-            </button>
+        {/* View Toggler (Only show if not onboarding) */}
+        {!onboardingChild && (
+          <div className="mb-6 flex justify-center">
+            <div className="flex p-1 bg-blue-100 rounded-full">
+              <button
+                onClick={() => handleViewChange("child")}
+                className={`py-2 px-6 rounded-full font-semibold transition-all ${
+                  currentView === "child"
+                    ? "bg-white shadow text-blue-600"
+                    : "text-blue-500 hover:bg-blue-200"
+                }`}
+              >
+                Child View
+              </button>
+              <button
+                onClick={() => handleViewChange("parent")}
+                className={`py-2 px-6 rounded-full font-semibold transition-all ${
+                  currentView === "parent"
+                    ? "bg-white shadow text-blue-600"
+                    : "text-blue-500 hover:bg-blue-200"
+                }`}
+              >
+                Parent View
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* PIN Modal */}
         {showPinModal && (
@@ -357,15 +356,22 @@ export default function App() {
           />
         )}
 
-        {/* Main Content: Render view based on state */}
+        {/* --- MODIFIED: Main Content Rendering --- */}
         <main>
-          {currentView === "parent" ? (
+          {onboardingChild ? (
+            <AvatarCreator
+              childName={onboardingChild.name}
+              onSave={handleSaveChild}
+              onCancel={() => setOnboardingChild(null)}
+            />
+          ) : currentView === "parent" ? (
             <ParentView
-              tasks={tasks} // Will only contain today's tasks
+              tasks={tasks}
               childrenProfiles={childrenProfiles}
               onCreateTask={handleCreateTask}
-              onAddChild={handleAddChild}
+              onAddChild={handleStartOnboarding} // <-- Use new handler
               getTodayString={getTodayString}
+              onApproveTask={() => {}} // Placeholder
             />
           ) : !currentChildId ? (
             <ChildSelectionView
@@ -374,13 +380,15 @@ export default function App() {
             />
           ) : (
             <ChildDashboard
-              tasks={tasks} // Will only contain today's tasks
+              tasks={tasks} // Pass all tasks
               childrenProfiles={childrenProfiles}
               currentChildId={currentChildId}
               currentChildProfile={currentChildProfile}
               onCompleteTask={handleCompleteTask}
               onBuyItem={handleBuyItem}
               onSwitchChild={() => handleSetCurrentChild(null)}
+              onSubmitReflection={() => {}} // Placeholder
+              loadingReflection={false} // Placeholder
             />
           )}
         </main>
@@ -391,6 +399,7 @@ export default function App() {
 
 // --- PIN Modal Component ---
 const ParentPinModal = ({ onSubmit, onCancel }) => {
+  // ... (existing code is fine)
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
 

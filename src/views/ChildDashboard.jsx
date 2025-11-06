@@ -40,7 +40,7 @@ export default function ChildDashboard({
 
   // Get today's tasks
   const todayStr = getTodayString();
-  const todaysTasks = myTasks.filter((task) => task.date === todayStr);
+  const todaysTasks = myTasks.filter((task) => task.taskDate === todayStr);
 
   // Check if any of *today's* tasks are still pending
   const areTasksCompleted =
@@ -95,14 +95,14 @@ export default function ChildDashboard({
             currentChildProfile={currentChildProfile}
             onGoToShop={handleGoToShop}
             onReflectClick={handleReflectClick}
+            onBuyItem={onBuyItem} // Pass onBuyItem to HomeView as well
           />
         </div>
         <div className={activeTab === "tasks" ? "block" : "hidden"}>
           <TaskView
-            tasks={myTasks} // Pass all *my* tasks
+            tasks={todaysTasks} // Pass ONLY *today's* tasks
             onCompleteTask={onCompleteTask}
             areTasksCompleted={areTasksCompleted}
-            getTodayString={getTodayString} // Pass the helper function
           />
         </div>
         <div className={activeTab === "social" ? "block" : "hidden"}>
@@ -118,7 +118,7 @@ export default function ChildDashboard({
         <ShopView
           onClose={handleCloseShop}
           onBuyItem={handleBuyAndClose}
-          currentStars={currentChildProfile.stars || 0}
+          currentChildProfile={currentChildProfile} // <-- This is the fix
         />
       )}
       {showReflection && (

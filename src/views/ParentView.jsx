@@ -1,13 +1,15 @@
 import React, { useState } from "react";
-import { AvatarIcon, StarIcon } from "../components/icons.jsx";
-import TaskItem from "../components/TaskItem.jsx";
+import { AvatarIcon, StarIcon } from "/src/components/icons.jsx";
+import TaskItem from "/src/components/TaskItem.jsx";
+// NEW: Import the preview component
+import AvatarPreview from "/src/components/AvatarPreview.jsx";
 
 // --- Parent View Component ---
 export default function ParentView({
   tasks,
   childrenProfiles,
   onCreateTask,
-  onAddChild,
+  onAddChild, // This prop is now 'handleStartOnboarding' from App.jsx
   onApproveTask,
   getTodayString,
 }) {
@@ -16,6 +18,7 @@ export default function ParentView({
   const [assignedTo, setAssignedTo] = useState("all"); // Default to 'all'
   const [newChildName, setNewChildName] = useState("");
   const [taskDate, setTaskDate] = useState(getTodayString()); // New state for date
+  const [showPastTasks, setShowPastTasks] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -44,13 +47,21 @@ export default function ParentView({
 
   const handleAddChildSubmit = (e) => {
     e.preventDefault();
-    onAddChild(newChildName);
+    onAddChild(newChildName); // This now triggers the onboarding flow in App.jsx
     setNewChildName("");
   };
 
-  // Filter tasks based on status
-  const pendingTasks = tasks.filter((task) => task.status === "pending");
-  const completedTasks = tasks.filter((task) => task.status === "completed");
+  // Filter tasks
+  const todayStr = getTodayString();
+  const todaysTasks = tasks.filter((task) => task.taskDate === todayStr);
+  const pastTasks = tasks.filter(
+    (task) => task.taskDate < todayStr && task.status !== "proposed"
+  );
+
+  const pendingTasks = todaysTasks.filter((task) => task.status === "pending");
+  const completedTasks = todaysTasks.filter(
+    (task) => task.status === "completed"
+  );
   const proposedTasks = tasks.filter((task) => task.status === "proposed");
 
   return (
@@ -67,7 +78,15 @@ export default function ParentView({
               className="flex justify-between items-center p-2 bg-white rounded border"
             >
               <div className="flex items-center gap-2">
-                <AvatarIcon className="w-8 h-8 text-blue-400" />
+                {/* MODIFIED: Show custom avatar or default */}
+                {child.avatarConfig ? (
+                  <AvatarPreview
+                    config={child.avatarConfig}
+                    className="w-8 h-8"
+                  />
+                ) : (
+                  <AvatarIcon className="w-8 h-8 text-blue-400" />
+                )}
                 <span className="font-medium">{child.name}</span>
               </div>
               <div className="flex items-center gap-1 px-3 py-1 bg-yellow-100 rounded-full">
@@ -225,7 +244,7 @@ export default function ParentView({
         <div className="grid md:grid-cols-2 gap-6">
           <div>
             <h3 className="text-xl font-semibold mb-2">
-              Pending Tasks ({pendingTasks.length})
+              Today's Pending Tasks ({pendingTasks.length})
             </h3>
             <div className="space-y-2">
               {pendingTasks.length > 0 ? (
@@ -243,7 +262,7 @@ export default function ParentView({
           </div>
           <div>
             <h3 className="text-xl font-semibold mb-2">
-              Completed Tasks ({completedTasks.length})
+              Today's Completed Tasks ({completedTasks.length})
             </h3>
             <div className="space-y-2">
               {completedTasks.length > 0 ? (
@@ -260,6 +279,35 @@ export default function ParentView({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Past Tasks Section */}
+      <div className="space-y-4 pt-6 border-t">
+        <h3 className="text-xl font-semibold">Task History</h3>
+        <button
+          onClick={() => setShowPastTasks(!showPastTasks)}
+          className="w-full px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+        >
+          {showPastTasks ? "Hide" : "Show"} All Past Tasks ({pastTasks.length})
+        </button>
+
+        {showPastTasks && (
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+            {pastTasks.length > 0 ? (
+              pastTasks
+                .sort((a, b) => new Date(b.taskDate) - new Date(a.taskDate)) // Sort by date descending
+                .map((task) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    childrenProfiles={childrenProfiles}
+                  />
+                ))
+            ) : (
+              <p className="text-gray-500">No past tasks found.</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

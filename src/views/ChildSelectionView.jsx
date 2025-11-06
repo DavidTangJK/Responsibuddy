@@ -1,5 +1,5 @@
 import React from "react";
-import { AvatarIcon } from "../components/icons.jsx";
+import AvatarPreview from "../components/AvatarPreview.jsx"; // <-- IMPORT NEW PREVIEW
 
 // --- Child Selection View Component ---
 export default function ChildSelectionView({
@@ -23,7 +23,11 @@ export default function ChildSelectionView({
               onClick={() => onSelectChild(child.id)}
               className="flex flex-col items-center p-4 bg-gray-50 rounded-lg hover:bg-blue-100 hover:shadow-md transition-all border border-transparent hover:border-blue-300"
             >
-              <AvatarIcon />
+              {/* --- USE NEW AVATAR PREVIEW --- */}
+              <AvatarPreview
+                avatarConfig={child.avatarConfig}
+                className="w-20 h-20"
+              />
               <span className="mt-2 text-lg font-semibold text-blue-600">
                 {child.name}
               </span>
